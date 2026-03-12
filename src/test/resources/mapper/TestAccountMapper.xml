@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scrm.r2dbc.plus.test.mapper.TestAccountMapper">
+
+    <!-- 根据复杂条件查询账号 -->
+    <select id="findAccountsByComplexCondition" resultType="com.scrm.r2dbc.plus.test.entity.TestAccount">
+        SELECT * FROM test_account
+        <where>
+            <if test="uuid != null and uuid != ''">
+                AND uuid = #{uuid}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="isOpen != null">
+                AND is_open = #{isOpen}
+            </if>
+            <if test="groupId != null">
+                AND group_id = #{groupId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (nickname LIKE CONCAT('%', #{keyword}, '%') 
+                     OR account LIKE CONCAT('%', #{keyword}, '%')
+                     OR remark LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            AND is_del = 0
+        </where>
+        ORDER BY gmt_create DESC
+    </select>
+
+    <!-- 根据优先级查询账号 -->
+    <select id="findAccountsByPriority" resultType="com.scrm.r2dbc.plus.test.entity.TestAccount">
+        SELECT * FROM test_account
+        WHERE uuid = #{uuid} AND is_del = 0
+        <choose>
+            <when test="priority == 'high'">
+                AND status = 1 AND is_open = 0 ORDER BY sort_num ASC, gmt_create DESC
+            </when>
+            <when test="priority == 'medium'">
+                AND status IN (1, 2) AND is_open = 0 ORDER BY status ASC, sort_num ASC
+            </when>
+            <otherwise>
+                ORDER BY sort_num ASC, gmt_create ASC
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 批量更新账号状态 -->
+    <update id="batchUpdateAccountStatus">
+        UPDATE test_account
+        <set>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="updatedBy != null">
+                updated_by = #{updatedBy},
+            </if>
+            gmt_modified = NOW()
+        </set>
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND is_del = 0
+    </update>
+
+    <!-- 批量插入账号 -->
+    <insert id="batchInsertAccounts">
+        INSERT INTO test_account (
+            group_id, uuid, account, password, nickname, avatar, 
+            remark, status, is_open, country, gmt_create, gmt_modified
+        )
+        VALUES
+        <foreach collection="accounts" item="account" separator=",">
+            (
+                #{account.groupId}, #{account.uuid}, #{account.account}, 
+                #{account.password}, #{account.nickname}, #{account.avatar},
+                #{account.remark}, #{account.status}, #{account.isOpen}, 
+                #{account.country}, NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!-- 获取账号统计信息 -->
+    <select id="getAccountStatistics" resultType="java.util.Map">
+        SELECT 
+            COUNT(*) as totalCount,
+            COUNT(CASE WHEN status = 1 THEN 1 END) as activeCount,
+            COUNT(CASE WHEN is_open = 0 THEN 1 END) as enabledCount,
+            COUNT(CASE WHEN is_open = 1 THEN 1 END) as disabledCount
+        FROM test_account 
+        WHERE uuid = #{uuid} AND is_del = 0
+    </select>
+
+    <!-- 获取各状态账号数量 -->
+    <select id="countAccountsByStatus" resultType="java.util.Map">
+        SELECT 
+            status,
+            COUNT(*) as count
+        FROM test_account 
+        WHERE uuid = #{uuid} AND is_del = 0
+        GROUP BY status
+        ORDER BY status
+    </select>
+
+    <!-- 查询最近活跃的账号 -->
+    <select id="findRecentActiveAccounts" resultType="com.scrm.r2dbc.plus.test.entity.TestAccount">
+        SELECT * FROM test_account
+        WHERE uuid = #{uuid} 
+          AND is_del = 0 
+          AND is_open = 0
+          AND status = 1
+          AND gmt_modified >= DATE_SUB(NOW(), INTERVAL #{hours} HOUR)
+        ORDER BY gmt_modified DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- 获取账号分组统计 -->
+    <select id="getAccountGroupStatistics" resultType="java.util.Map">
+        SELECT 
+            g.id as groupId,
+            g.name as groupName,
+            COUNT(a.id) as accountCount,
+            COUNT(CASE WHEN a.status = 1 THEN 1 END) as activeCount
+        FROM test_account_group g
+        LEFT JOIN test_account a ON g.id = a.group_id AND a.is_del = 0
+        WHERE g.uuid = #{uuid} AND g.is_del = 0
+        GROUP BY g.id, g.name
+        ORDER BY g.sort_num ASC
+    </select>
+
+    <!-- 复杂的嵌套条件查询 -->
+    <select id="findAccountsWithComplexConditions" resultType="com.scrm.r2dbc.plus.test.entity.TestAccount">
+        SELECT a.*, g.name as groupName FROM test_account a
+        LEFT JOIN test_account_group g ON a.group_id = g.id
+        <where>
+            a.is_del = 0
+            <if test="searchType == 'basic'">
+                <if test="keyword != null and keyword != ''">
+                    AND (a.nickname LIKE CONCAT('%', #{keyword}, '%') 
+                         OR a.account LIKE CONCAT('%', #{keyword}, '%')
+                         OR a.remark LIKE CONCAT('%', #{keyword}, '%'))
+                </if>
+            </if>
+            <if test="searchType == 'advanced'">
+                <if test="groupIds != null and groupIds.size() > 0">
+                    AND a.group_id IN
+                    <foreach collection="groupIds" item="groupId" open="(" separator="," close=")">
+                        #{groupId}
+                    </foreach>
+                </if>
+                <if test="statusList != null and statusList.size() > 0">
+                    AND a.status IN
+                    <foreach collection="statusList" item="status" open="(" separator="," close=")">
+                        #{status}
+                    </foreach>
+                </if>
+                <if test="isOpen != null">
+                    AND a.is_open = #{isOpen}
+                </if>
+                <if test="startDate != null">
+                    AND a.gmt_create >= #{startDate}
+                </if>
+                <if test="endDate != null">
+                    AND a.gmt_create &lt; = #{endDate}
+                </if>
+            </if>
+            <if test="uuid != null and uuid != ''">
+                AND a.uuid = #{uuid}
+            </if>
+        </where>
+        <choose>
+            <when test="orderBy == 'nickname'">
+                ORDER BY a.nickname ASC
+            </when>
+            <when test="orderBy == 'status'">
+                ORDER BY a.status DESC, a.gmt_create DESC
+            </when>
+            <when test="orderBy == 'group'">
+                ORDER BY g.sort_num ASC, a.sort_num ASC
+            </when>
+            <otherwise>
+                ORDER BY a.gmt_create DESC
+            </otherwise>
+        </choose>
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+</mapper>

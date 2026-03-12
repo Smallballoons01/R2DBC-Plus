@@ -1,0 +1,2 @@
+org.springframework.data.r2dbc.dialect.DialectResolver$R2dbcDialectProvider=\
+com.scrm.r2dbc.plus.config.ClickHouseDialectProvider

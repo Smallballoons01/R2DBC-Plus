@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scrm.r2dbc.plus.test.mapper.TestMapper">
+
+    <!-- 简单的静态查询 -->
+    <select id="findById" resultType="java.util.Map">
+        SELECT * FROM test_account WHERE id = #{id}
+    </select>
+
+    <!-- 带if条件的动态查询 -->
+    <select id="findByCondition" resultType="java.util.Map">
+        SELECT * FROM test_account
+        <where>
+            <if test="name != null and name != ''">
+                AND nickname = #{name}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <!-- 使用choose-when-otherwise的查询 -->
+    <select id="findByPriority" resultType="java.util.Map">
+        SELECT * FROM test_account
+        WHERE 1=1
+        <choose>
+            <when test="priority == 'high'">
+                AND status = 1 ORDER BY gmt_create DESC
+            </when>
+            <when test="priority == 'medium'">
+                AND status IN (0, 1) ORDER BY status DESC
+            </when>
+            <otherwise>
+                ORDER BY id ASC
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 使用foreach的查询 -->
+    <select id="findByIds" resultType="java.util.Map">
+        SELECT * FROM test_account
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 使用trim的查询 -->
+    <select id="findWithTrim" resultType="java.util.Map">
+        SELECT * FROM test_account
+        <trim prefix="WHERE" prefixOverrides="AND |OR ">
+            <if test="name != null">
+                AND nickname = #{name}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </trim>
+    </select>
+
+    <!-- 简单的插入 -->
+    <insert id="insertData">
+        INSERT INTO test_account (nickname, status, gmt_create)
+        VALUES (#{name}, #{status}, NOW())
+    </insert>
+
+    <!-- 批量插入 -->
+    <insert id="batchInsert">
+        INSERT INTO test_account (name, status, gmt_create)
+        VALUES
+        <foreach collection="items" item="item" separator=",">
+            (#{item.name}, #{item.status}, NOW())
+        </foreach>
+    </insert>
+
+    <!-- 动态更新 -->
+    <update id="updateById">
+        UPDATE test_account
+        <set>
+            <if test="name != null">
+                nickname = #{name},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            gmt_modified = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 批量更新 -->
+    <update id="batchUpdate">
+        UPDATE test_account
+        <set>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            gmt_modified = NOW()
+        </set>
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 简单删除 -->
+    <delete id="deleteById">
+        DELETE FROM test_account WHERE id = #{id}
+    </delete>
+
+    <!-- 条件删除 -->
+    <delete id="deleteByCondition">
+        DELETE FROM test_account
+        <where>
+            <if test="name != null">
+                AND nickname = #{name}
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+    </delete>
+
+    <!-- 复杂的嵌套条件查询 -->
+    <select id="complexQuery" resultType="java.util.Map">
+        SELECT * FROM test_account
+        <where>
+            <if test="searchType == 'basic'">
+                <if test="keyword != null and keyword != ''">
+                    AND (name LIKE CONCAT('%', #{keyword}, '%') 
+                         OR description LIKE CONCAT('%', #{keyword}, '%'))
+                </if>
+            </if>
+            <if test="searchType == 'advanced'">
+                <if test="nameList != null and nameList.size() > 0">
+                    AND nickname IN
+                    <foreach collection="nameList" item="name" open="(" separator="," close=")">
+                        #{name}
+                    </foreach>
+                </if>
+                <if test="statusList != null and statusList.size() > 0">
+                    AND status IN
+                    <foreach collection="statusList" item="status" open="(" separator="," close=")">
+                        #{status}
+                    </foreach>
+                </if>
+                <if test="startDate != null">
+                    AND gmt_create &gt;= #{startDate}
+                </if>
+                <if test="endDate != null">
+                    AND gmt_create &lt;= #{endDate}
+                </if>
+            </if>
+        </where>
+        <choose>
+            <when test="orderBy == 'name'">
+                ORDER BY nickname ASC
+            </when>
+            <when test="orderBy == 'status'">
+                ORDER BY status DESC, gmt_create DESC
+            </when>
+            <otherwise>
+                ORDER BY gmt_create DESC
+            </otherwise>
+        </choose>
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- 统计查询 -->
+    <select id="countByStatus" resultType="java.util.Map">
+        SELECT 
+            status,
+            COUNT(*) as count
+        FROM test_account
+        <where>
+            <if test="name != null">
+                AND nickname = #{name}
+            </if>
+        </where>
+        GROUP BY status
+    </select>
+
+</mapper>
