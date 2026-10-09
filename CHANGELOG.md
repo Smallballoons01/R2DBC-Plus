@@ -53,7 +53,22 @@
 ### 安全
 
 - 移除测试配置中的明文数据库密码，改由环境变量注入
+- **重写 Git 历史清除凭据**：首个提交曾包含硬编码的数据库地址与明文密码，
+  已通过 `git filter-repo` 将其替换为 `${R2DBC_TEST_*}` 环境变量占位符。
+  因此本项目所有历史提交的 hash 均已变更，若你曾克隆过旧版本，请重新克隆
 - `.gitignore` 增加凭据类文件的忽略规则
+- 移除 `org.reflections:0.10.2`：经全量检索确认代码中零引用，属冗余依赖，
+  且该版本存在多个已知 CVE并传递引入 `org.javassist`
+- 加固 XML 解析：新增 `XMLConstants.ACCESS_EXTERNAL_*` 限制、
+  `entityExpansionLimit` 防 XML Bomb、各特性改为静默兜底避免解析流程中断
+- 新增 `XmlSecurityTest`（6 个）验证 XXE / SSRF / XML Bomb 防护真实有效
+
+### 移除的依赖
+
+| 依赖 | 原因 |
+|------|------|
+| `org.reflections:0.10.2` | 代码零引用的冗余依赖，存在已知 CVE，传递引入 javassist |
+| `org.javassist:3.28.0-GA` | 随 reflections 一并移除 |
 
 [Unreleased]: https://github.com/Smallballoons01/R2DBC-Plus/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/Smallballoons01/R2DBC-Plus/releases/tag/v1.1.0
