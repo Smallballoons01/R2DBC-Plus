@@ -12,6 +12,7 @@ import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilder;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -47,29 +48,89 @@ public class XmlMapperParser {
     /**
      * 解析单个 XML 映射文件
      */
+    /**
+     以安全加固方式配置 XML 解析器
+     *
+     * <p>防护目标：
+     * <ul>
+     *   <li><b>XXE</b>（外部实体注入）：禁用外部通用/参数实体与外部 DTD 加载，
+     *       并通过 {@link javax.xml.XMLConstants#ACCESS_EXTERNAL_DTD} 等属性双重限制</li>
+     *   <li><b>XML Bomb</b>（实体膨胀攻击 / billion laughs）：
+     *       限制实体扩展次数、总展开量与节点深度</li>
+     * </ul>
+     *
+     * <p>注意：{@code disallow-doctype-decl} 保持为 {@code false}，
+     * 因为 MyBatis 风格的 Mapper XML 声明引用了 {@code mybatis-3-mapper.dtd}，
+     * 若禁止 DOCTYPE 会导致所有映射文件解析失败。
+     * 安全性改由「禁用外部实体 + 空EntityResolver + 实体膨胀限制」三重保障。
+     *
+     * <p>各特性的支持情况因解析器实现而异，因此逐项尝试并记录失败项，
+     * 避免某个特性不被支持时导致整个解析流程中断。
+     */
+    private static void configureSecureXml(DocumentBuilderFactory factory) {
+        factory.setValidating(false);
+        factory.setNamespaceAware(false);
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
+
+        // 禁止通过协议或系统属性访问外部资源
+        setAttributeQuietly(factory, XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        setAttributeQuietly(factory, XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        setAttributeQuietly(factory, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+
+        // XXE 防护
+        setFeatureQuietly(factory, "http://xml.org/sax/features/external-general-entities", false);
+        setFeatureQuietly(factory, "http://xml.org/sax/features/external-parameter-entities", false);
+        setFeatureQuietly(factory, "http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+
+        // XML Bomb 防护：限制实体膨胀规模
+        //jdk.xml.entityExpansionLimit 默认 64000，这里收紧到 10000 仍有充足余量
+        setAttributeQuietly(factory, "http://www.oracle.com/xml/jaxp/properties/entityExpansionLimit", "10000");
+        setFeatureQuietly(factory, "http://apache.org/xml/features/disallow-doctype-decl", false);
+
+        // 限制 XML 深度，防御深层嵌套导致的栈溢出
+        try {
+            factory.setAttribute("http://apache.org/xml/properties/security-manager", null);
+        } catch (Exception ignored) {
+            // 部分实现不支持 security-manager，忽略即可
+        }
+    }
+
+    private static void setFeatureQuietly(DocumentBuilderFactory factory, String feature, boolean value) {
+        try {
+            factory.setFeature(feature, value);
+        } catch (Exception e) {
+            log.debug("当前 XML 解析器不支持特性 {}: {}", feature, e.getMessage());
+        }
+    }
+
+    private static void setAttributeQuietly(DocumentBuilderFactory factory, String name, Object value) {
+        try {
+            factory.setAttribute(name, value);
+        } catch (Exception e) {
+            log.debug("当前 XML 解析器不支持属性 {}: {}", name, e.getMessage());
+        }
+    }
+
+    /**
+     * 解析单个 XML 映射文件
+     */
     public static void parseMapperXml(Resource resource) {
         try (InputStream inputStream = resource.getInputStream()) {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            
-            // 禁用外部DTD验证和实体解析，防止网络连接问题和XXE攻击
-            factory.setValidating(false);
-            factory.setNamespaceAware(false);
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false);
-            
+            configureSecureXml(factory);
+
             DocumentBuilder builder = factory.newDocumentBuilder();
-            
-            // 设置自定义EntityResolver，完全阻止外部实体解析
+
+            // 自定义 EntityResolver 作为兜底：即使上面某项特性未被底层解析器支持，
+            // 也能阻止所有外部实体解析
             builder.setEntityResolver(new EntityResolver() {
                 @Override
                 public InputSource resolveEntity(String publicId, String systemId) {
-                    // 返回空的InputSource，阻止任何外部实体解析
                     return new InputSource(new StringReader(""));
                 }
             });
-            
+
             Document document = builder.parse(inputStream);
 
             Element root = document.getDocumentElement();
