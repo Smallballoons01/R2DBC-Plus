@@ -2,13 +2,12 @@
 
 <p>
     <a href="https://maven.apache.org/"><img src="https://img.shields.io/badge/Maven-3.6+-orange.svg" alt="Maven"></a>
-    <a href="https://www.oracle.com/java/technologies/downloads/"><img src="https://img.shields.io/badge/JDK-8+-green.svg" alt="JDK"></a>
-    <a href="https://spring.io/projects/spring-data-r2dbc"><img src="https://img.shields.io/badge/Spring Data R2DBC-3.x-blue.svg" alt="Spring Data R2DBC"></a>
-    <a href="https://github.com/ReactiveIO/r2dbc-mysql"><img src="https://img.shields.io/badge/R2DBC MySQL-Support-blue.svg" alt="R2DBC MySQL"></a>
+    <a href="https://www.oracle.com/java/technologies/downloads/"><img src="https://img.shields.io/badge/JDK-17+-green.svg" alt="JDK"></a>
+    <a href="https://spring.io/projects/spring-data-r2dbc"><img src="https://img.shields.io/badge/Spring%20Data%20R2DBC-3.x-blue.svg" alt="Spring Data R2DBC"></a>
+    <a href="https://github.com/ReactiveIO/r2dbc-mysql"><img src="https://img.shields.io/badge/R2DBC%20MySQL-Support-blue.svg" alt="R2DBC MySQL"></a>
+    <a href="https://github.com/Smallballoons01/R2DBC-Plus/actions/workflows/ci.yml"><img src="https://github.com/Smallballoons01/R2DBC-Plus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-red.svg" alt="License"></a>
 </p>
-
-> English | [中文](./README.md)
 
 R2DBC Plus 是一个响应式 R2DBC ORM 增强框架，灵感来源于 MyBatis-Plus，旨在为响应式 Spring 应用提供便捷的数据库访问能力。
 
@@ -27,9 +26,9 @@ R2DBC Plus 是一个响应式 R2DBC ORM 增强框架，灵感来源于 MyBatis-P
 
 ## 技术栈
 
-- Java 8+
+- Java 17+
 - Spring Boot 3.x
-- Spring Data R2DBC
+- Spring Data R2DBC 3.x
 - R2DBC MySQL Driver
 - Project Reactor
 
@@ -41,13 +40,15 @@ R2DBC Plus 是一个响应式 R2DBC ORM 增强框架，灵感来源于 MyBatis-P
 <dependency>
     <groupId>com.scrm</groupId>
     <artifactId>r2dbc-plus</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0-SNAPSHOT</version>
 </dependency>
 ```
 
 ### 2. 配置
 
-在 Spring Boot 启动类上添加 MapperScan 注解：
+框架通过 `AutoConfiguration.imports` 自动装配，引入依赖即生效，无需额外声明 `@Import`。
+
+如需扫描自定义 Mapper，在启动类上添加 `@MapperScan`：
 
 ```java
 @SpringBootApplication
@@ -59,11 +60,16 @@ public class Application {
 }
 ```
 
-或在配置文件中添加自动配置：
+可选配置（在 `application.yml` 中）：
 
 ```yaml
 r2dbc-plus:
+  # XML 映射文件位置
   mapper-locations: classpath*:mapper/**/*.xml
+  # 关闭 XML 解析（纯注解方式使用时可提速）
+  xml-enabled: true
+  # 分页单页最大条数保护
+  max-page-size: 500
 ```
 
 ### 3. 定义实体类
@@ -291,66 +297,70 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `r2dbc-plus.mapper-locations` | XML 映射文件位置 | `classpath*:mapper/**/*.xml` |
+| `r2dbc-plus.xml-enabled` | 是否在启动时解析 XML | `true` |
 | `r2dbc-plus.table-prefix` | 全局表前缀 | 无 |
 | `r2dbc-plus.column-prefix` | 全局列前缀 | 无 |
+| `r2dbc-plus.max-page-size` | 分页单页最大条数 | `500` |
+| `r2dbc-plus.insert-batch-size` | 单次批量插入上限 | `1000` |
+| `r2dbc-plus.default-batch-size` | 默认分批数量 | `1000` |
+| `r2dbc-plus.query-timeout` | 操作超时，如 `5s` | 无限制 |
 
 ## 项目结构
 
 ```
-r2dbc-plus
-├── src
-│   ├── main
-│   │   ├── java
-│   │   │   └── com.scrm.r2dbc.plus
-│   │   │       ├── annotation/          # 注解定义
-│   │   │       ├── conditions/          # 条件构造器
-│   │   │       ├── config/              # 自动配置
-│   │   │       ├── enums/               # 枚举定义
-│   │   │       ├── fill/                # 字段填充
-│   │   │       ├── generator/           # ID生成器
-│   │   │       ├── logic/               # 逻辑删除
-│   │   │       ├── mapper/              # Mapper接口
-│   │   │       ├── page/                # 分页
-│   │   │       ├── proxy/               # 代理工厂
-│   │   │       ├── service/             # 服务基类
-│   │   │       ├── util/                # 工具类
-│   │   │       ├── version/             # 乐观锁
-│   │   │       └── xml/                 # XML解析
-│   │   └── resources/
-│   └── test                              # 测试代码
-├── pom.xml
-└── README.md
+src/main/java/com/scrm/r2dbc/plus
+├── annotation/          # 注解定义
+├── conditions/          # 条件构造器（query/update 子包）
+├── config/              # 自动配置与 Mapper 扫描
+├── enums/               # 枚举定义
+├── factory/             # 运行时工厂
+├── fill/                # 字段填充
+├── function/            # Lambda 方法引用
+├── generator/           # ID生成器
+├── logic/               # 逻辑删除
+├── mapper/              # Mapper 接口与实现
+├── page/                # 分页
+├── proxy/               # 动态代理
+├── service/             # 服务基类
+├── util/                # 工具类
+├── version/             # 乐观锁
+└── xml/                 # XML 映射解析与执行
 ```
 
-## 测试运行
+自动配置入口位于
+`src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`。
+
+## 构建与测试
 
 ```bash
-# 运行所有测试
-mvn test -Dtest=AllTestSuite
+# 编译
+mvn clean compile
 
-# 运行核心功能测试
-mvn test -Dtest=CoreTestSuite
+# 运行全部测试（默认使用 H2 内存库，无需任何外部依赖）
+mvn clean verify
 
-# 运行快速测试
-mvn test -Dtest=QuickTestSuite
+# 只跑快速测试
+mvn test -Dgroups=fast
 
-# 运行特定测试类
-mvn test -Dtest=com.scrm.r2dbc.plus.test.annotation.AnnotationTest
+# 用真实 MySQL 跑测试（需自行准备表结构与数据）
+export R2DBC_TEST_URL=r2dbc:mysql://localhost:3306/test_db
+export R2DBC_TEST_USER=root
+export R2DBC_TEST_PASSWORD=secret
+mvn test -Dspring.profiles.active=mysql
 ```
-
-详细测试说明请参考 [test-runner.md](./test-runner.md)
 
 ## 注意事项
 
-1. 本框架仅支持响应式 Spring Boot 应用
+1. 本框架仅支持响应式 Spring Boot 应用（WebFlux 或 R2DBC）
 2. 需要配置 R2DBC 数据库连接
 3. 逻辑删除字段需要在实体类中用 `@TableLogic` 标注
 4. 乐观锁字段需要在实体类中用 `@Version` 标注
+5. 内置 ClickHouse 方言（复用 Postgres 方言的 SQL 映射），复杂 ClickHouse 语法建议自定义方言
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request。本地跑通测试（`mvn clean verify`）后再提交，可以避免 CI 上出现环境相关失败。
 
 ## 许可证
 
-MIT License
+[MIT License](./LICENSE)

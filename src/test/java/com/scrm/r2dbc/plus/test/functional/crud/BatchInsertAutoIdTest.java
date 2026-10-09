@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.r2dbc.core.DatabaseClient;
-import org.springframework.test.context.ActiveProfiles;
 import reactor.test.StepVerifier;
 
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * @author dason
  */
-@ActiveProfiles("mysql")
 @SpringBootTest(classes = TestConfiguration.class)
 @Tag("functional")
 @Tag("crud")

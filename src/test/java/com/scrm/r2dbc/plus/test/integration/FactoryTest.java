@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -23,26 +22,23 @@ import reactor.test.StepVerifier;
  * @author dason
  */
 @SpringBootTest(classes = TestConfiguration.class)
-@ActiveProfiles("mysql")
 @Tag("integration")
 @Tag("fast")
 public class FactoryTest {
 
-    @Autowired(required = false)
+    /**
+     * 严格注入：原先的 {@code required = false} + 手工兜底会让真正的装配失败被静默吞掉，
+     * 测试永远"看似通过"，反而掩盖问题。
+     */
+    @Autowired
     private R2dbcPlusFactory r2DbcPlusFactory;
 
-    @Autowired(required = false)
+    @Autowired
     private MapperProxyFactory mapperProxyFactory;
 
     @BeforeEach
     public void setUp() {
-        // 如果依赖注入失败，创建默认实例
-        if (mapperProxyFactory == null) {
-            mapperProxyFactory = new MapperProxyFactory();
-        }
-        if (r2DbcPlusFactory == null) {
-            r2DbcPlusFactory = new R2dbcPlusFactory();
-        }
+        // 无需兜底：注入失败即视为装配错误，应让测试失败
     }
 
     @Test

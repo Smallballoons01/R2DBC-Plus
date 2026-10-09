@@ -1,2 +1,6 @@
+# 方言 Provider：Spring Data R2DBC 通过 SpringFactoriesLoader 以
+# org.springframework.data.r2dbc.dialect.DialectResolver$R2dbcDialectProvider 为 key 加载。
+# 注意这不是 Spring Boot 自动配置入口（自动配置走 AutoConfiguration.imports），
+# 因此方言注册仍需保留在 spring.factories 中。
 org.springframework.data.r2dbc.dialect.DialectResolver$R2dbcDialectProvider=\
 com.scrm.r2dbc.plus.config.ClickHouseDialectProvider

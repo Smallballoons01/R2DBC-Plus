@@ -7,7 +7,6 @@ import com.scrm.r2dbc.plus.mapper.BaseMapper;
 import com.scrm.r2dbc.plus.mapper.impl.BaseMapperImpl;
 import com.scrm.r2dbc.plus.page.Page;
 import com.scrm.r2dbc.plus.xml.XmlSqlExecutor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Component;
@@ -27,20 +26,11 @@ import java.util.Map;
 @Component
 public class MapperProxyFactory {
 
-    @Autowired
-    private XmlSqlExecutor xmlSqlExecutor;
-
-    @Autowired
-    private R2dbcEntityTemplate r2dbcEntityTemplate;
-
-    @Autowired
-    private DatabaseClient databaseClient;
-    
-    @Autowired(required = false)
-    private FieldFillProcessor fieldFillProcessor;
-
-    @Autowired(required = false)
-    private LogicDeleteProcessor logicDeleteProcessor;
+    private final XmlSqlExecutor xmlSqlExecutor;
+    private final R2dbcEntityTemplate r2dbcEntityTemplate;
+    private final DatabaseClient databaseClient;
+    private final FieldFillProcessor fieldFillProcessor;
+    private final LogicDeleteProcessor logicDeleteProcessor;
 
     private final Map<Class<?>, Object> mapperCache = new HashMap<>();
     
@@ -54,6 +44,11 @@ public class MapperProxyFactory {
     public MapperProxyFactory() {
         this.customEntityTemplate = null;
         this.customDatabaseClient = null;
+        this.xmlSqlExecutor = null;
+        this.r2dbcEntityTemplate = null;
+        this.databaseClient = null;
+        this.fieldFillProcessor = null;
+        this.logicDeleteProcessor = null;
     }
 
 
@@ -69,6 +64,8 @@ public class MapperProxyFactory {
         this.fieldFillProcessor = fieldFillProcessor;
         this.xmlSqlExecutor = xmlSqlExecutor;
         this.logicDeleteProcessor = logicDeleteProcessor;
+        this.r2dbcEntityTemplate = entityTemplate;
+        this.databaseClient = databaseClient;
     }
 
 
@@ -93,14 +90,21 @@ public class MapperProxyFactory {
 
         // 创建 BaseMapper 实现
         BaseMapperImpl<?> baseMapperImpl = new BaseMapperImpl<>(entityClass, entityTemplate, dbClient);
-        
+
         // 手动注入 fieldFillProcessor
         injectFieldFillProcessor(baseMapperImpl);
+
+        // XML 执行器：优先使用外部注入的实例（含多数据源场景与测试替身），
+        // 只有在未注入时才按当前数据源现场创建
+        XmlSqlExecutor executor = this.xmlSqlExecutor;
+        if (executor == null) {
+            executor = new XmlSqlExecutor(dbClient, entityTemplate);
+        }
 
         return Proxy.newProxyInstance(
                 mapperInterface.getClassLoader(),
                 new Class[]{mapperInterface},
-                new MapperInvocationHandler(mapperInterface, baseMapperImpl, dbClient, entityTemplate)
+                new MapperInvocationHandler(mapperInterface, baseMapperImpl, executor)
         );
     }
 
@@ -490,29 +494,12 @@ public class MapperProxyFactory {
     }
     
     /**
-     * 手动注入依赖到 BaseMapperImpl 实例
+     * 将处理器依赖装配到 BaseMapperImpl 实例。
+     *
+     * <p>BaseMapperImpl 由本工厂以 {@code new} 创建，不受 Spring 管理，
+     * 因此走其公开的 {@code withProcessors}，不再反射写私有字段。
      */
     private void injectFieldFillProcessor(BaseMapperImpl<?> mapper) {
-        // 注入 FieldFillProcessor
-        if (fieldFillProcessor != null) {
-            try {
-                java.lang.reflect.Field field = BaseMapperImpl.class.getDeclaredField("fieldFillProcessor");
-                field.setAccessible(true);
-                field.set(mapper, fieldFillProcessor);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to inject FieldFillProcessor into BaseMapperImpl", e);
-            }
-        }
-
-        // 注入 LogicDeleteProcessor
-        if (logicDeleteProcessor != null) {
-            try {
-                java.lang.reflect.Field field = BaseMapperImpl.class.getDeclaredField("logicDeleteProcessor");
-                field.setAccessible(true);
-                field.set(mapper, logicDeleteProcessor);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to inject LogicDeleteProcessor into BaseMapperImpl", e);
-            }
-        }
+        mapper.withProcessors(fieldFillProcessor, logicDeleteProcessor);
     }
 }

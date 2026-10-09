@@ -8,7 +8,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.r2dbc.core.DatabaseClient;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -21,7 +20,6 @@ import java.util.List;
  * 性能测试
  * 测试R2DBC Plus框架在各种场景下的性能表现
  */
-@ActiveProfiles("mysql")
 @SpringBootTest(classes = TestConfiguration.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Tag("performance")

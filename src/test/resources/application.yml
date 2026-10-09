@@ -1,0 +1,20 @@
+# R2DBC-Plus 测试默认配置
+#
+# 默认走 H2 内存库，无需任何外部依赖。
+# 切到真实 MySQL：在 application-mysql.yml 中配置（或用环境变量），
+# 并设置 r2dbc-plus.test.mysql-enabled=true。
+
+spring:
+  main:
+    banner-mode: off
+
+r2dbc-plus:
+  # 测试默认走纯注解路径，不解析 XML（XML 相关测试显式开启）
+  xml-enabled: false
+  test:
+    mysql-enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.scrm.r2dbc.plus: INFO

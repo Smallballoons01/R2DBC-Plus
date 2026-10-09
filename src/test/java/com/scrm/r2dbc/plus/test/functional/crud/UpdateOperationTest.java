@@ -36,7 +36,7 @@ public class UpdateOperationTest {
         // 直接创建实例，不依赖Spring容器
         LogicDeleteProcessor logicDeleteProcessor = new LogicDeleteProcessor();
         VersionProcessor versionProcessor = new VersionProcessor();
-        this.fieldFillProcessor = new FieldFillProcessor();
+        this.fieldFillProcessor = new FieldFillProcessor(new com.scrm.r2dbc.plus.generator.DefaultIdGenerator(), java.util.List.of(), null, null);
 
         // 创建字段填充处理器
         DefaultMetaObjectHandler metaObjectHandler = new DefaultMetaObjectHandler();

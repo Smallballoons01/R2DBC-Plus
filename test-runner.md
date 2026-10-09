@@ -93,10 +93,17 @@ mvn test -DexcludedGroups=slow
 
 ### 如果测试失败：
 
-1. **检查数据库连接**
+1. **确认数据库模式**
    ```bash
-   # 确保 MySQL 服务运行
-   # 检查 application-mysql.yml 配置
+   # 默认使用 H2 内存库，无需任何外部依赖
+   mvn clean verify
+
+   # 仅当显式激活 mysql profile 时才需要真实 MySQL，
+   # 此时通过环境变量提供连接信息（仓库内不保存任何真实凭据）：
+   export R2DBC_TEST_URL=r2dbc:mysql://localhost:3306/test_db
+   export R2DBC_TEST_USER=root
+   export R2DBC_TEST_PASSWORD=secret
+   mvn test -Dspring.profiles.active=mysql
    ```
 
 2. **检查依赖**
@@ -120,7 +127,10 @@ mvn test -DexcludedGroups=slow
 1. 编写测试 → 2. 实现功能 → 3. 运行测试 → 4. 重构优化
 
 ### 测试运行频率：
-- **开发时**：运行 QuickTestSuite
-- **提交前**：运行 CoreTestSuite  
-- **发布前**：运行 AllTestSuite
-- **定期**：运行 SlowTestSuite
+- **开发时**：`mvn test -Dgroups=fast`
+- **提交前**：`mvn clean verify`（等价于 AllTestSuite）
+- **发布前**：`mvn clean verify`
+- **定期**：`mvn clean verify`，并额外跑 MySQL 模式覆盖方言差异
+
+> 注：JUnit 5 Suite 的 `-Dtest=XxxTestSuite` 方式在 Surefire 下不完全可靠，
+> 推荐用 `-Dgroups=<tag>` 按标签筛选，或直接执行全量。

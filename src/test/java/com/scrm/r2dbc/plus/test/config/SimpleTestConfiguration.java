@@ -31,7 +31,7 @@ public class SimpleTestConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public FieldFillProcessor fieldFillProcessor() {
-        return new FieldFillProcessor();
+        return new FieldFillProcessor(new com.scrm.r2dbc.plus.generator.DefaultIdGenerator(), java.util.List.of(), null, null);
     }
 
     @Bean

@@ -10,7 +10,6 @@ import com.scrm.r2dbc.plus.logic.LogicDeleteProcessor;
 import com.scrm.r2dbc.plus.mapper.BaseMapper;
 import com.scrm.r2dbc.plus.page.Page;
 import com.scrm.r2dbc.plus.util.EntityUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
 import reactor.core.publisher.Flux;
@@ -28,16 +27,16 @@ import java.util.*;
  */
 public class BaseMapperImpl<T> implements BaseMapper<T> {
 
-    @Autowired
+    /**
+     * 以下依赖由创建者装配：本类通常经MapperProxyFactory 以 {@code new} 创建，
+     * 不作为 Spring Bean 管理，故不依赖 {@code @Autowired}。
+     */
     protected R2dbcEntityTemplate r2dbcEntityTemplate;
 
-    @Autowired
     protected DatabaseClient databaseClient;
 
-    @Autowired(required = false)
     protected FieldFillProcessor fieldFillProcessor;
 
-    @Autowired(required = false)
     protected LogicDeleteProcessor logicDeleteProcessor;
 
 
@@ -45,6 +44,28 @@ public class BaseMapperImpl<T> implements BaseMapper<T> {
 
     public BaseMapperImpl(Class<T> entityClass) {
         this.entityClass = entityClass;
+    }
+
+    /**
+     * 装配处理器依赖。
+     *
+     * <p>本类通常由 {@link com.scrm.r2dbc.plus.proxy.MapperProxyFactory} 以
+     * {@code new} 的方式创建（非 Spring Bean），无法走容器注入，
+     * 因此提供显式装配入口，取代原先的反射字段写入。
+     *
+     * @param fieldFillProcessor    字段填充处理器，可为 null
+     * @param logicDeleteProcessor  逻辑删除处理器，可为 null
+     * @return 自身，便于链式调用
+     */
+    public BaseMapperImpl<T> withProcessors(FieldFillProcessor fieldFillProcessor,
+                                           LogicDeleteProcessor logicDeleteProcessor) {
+        if (fieldFillProcessor != null) {
+            this.fieldFillProcessor = fieldFillProcessor;
+        }
+        if (logicDeleteProcessor != null) {
+            this.logicDeleteProcessor = logicDeleteProcessor;
+        }
+        return this;
     }
     /**
      * 绑定参数的辅助方法

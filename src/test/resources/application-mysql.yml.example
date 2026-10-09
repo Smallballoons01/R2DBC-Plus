@@ -1,0 +1,19 @@
+# R2DBC-Plus 真实 MySQL 测试配置（模板）
+#
+# 本文件仅作示例，不含真实凭据。启用方式：
+#   1. cp application-mysql.yml.example -> 由你本地的 application-mysql.yml 提供真实值
+#   2. export R2DBC_TEST_URL / R2DBC_TEST_USER / R2DBC_TEST_PASSWORD
+#   3. 设置 r2dbc-plus.test.mysql-enabled=true
+#
+# 注意：切到 MySQL 后，表结构与测试数据需自行准备，
+# 参考 src/test/resources/sql/test_account.sql。
+
+r2dbc-plus:
+  test:
+    mysql-enabled: true
+
+logging:
+  level:
+    com.scrm.r2dbc.plus: DEBUG
+    io.asyncer.r2dbc.mysql: DEBUG
+    org.springframework.boot.test: INFO
