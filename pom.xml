@@ -38,11 +38,20 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <java.version>17</java.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
 
-        <spring-boot.version>3.5.3</spring-boot.version>
+        <!--
+            编译基线：Java 17。
+            使用 maven.compiler.release 而非 source/target，可确保在 JDK 21/25 等高版本上
+            编译出的字节码仍链接 Java 17 API，不会误用高版本 API 导致运行期 NoSuchMethodError。
+            Spring Boot 4.x 的官方基线同样为 17，因此 17~25+ 均可构建。
+        -->
+        <java.version>17</java.version>
+
+        <!--
+            Spring Boot 版本可通过 -Dspring-boot.version=4.1.1 覆盖以验证兼容性。
+            默认取 3.5.x 稳定线；CI 会同时在 3.5.x 与 4.1.x 上构建。
+        -->
+        <spring-boot.version>3.5.16</spring-boot.version>
         <reflections.version>0.10.2</reflections.version>
         <uuid-creator.version>6.1.1</uuid-creator.version>
         <r2dbc-h2.version>1.1.0.RELEASE</r2dbc-h2.version>

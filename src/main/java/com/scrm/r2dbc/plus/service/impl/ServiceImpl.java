@@ -288,11 +288,13 @@ public class ServiceImpl<M extends BaseMapper<T>, T> implements IService<T> {
 
     @Override
     public Mono<Page<T>> page(Page<T> page, Wrapper<T> queryWrapper) {
-        // 验证分页大小，限制最大分页数量为2000
-        if (page != null && page.getSize() > 2000) {
-            return Mono.error(new RuntimeException("page query: size limit of 2000"));
+        // 分页参数的规范化与上限保护由 Page 自身完成，
+        // 直接调用 Mapper 的用户也能获得同样保护，不再在此硬编码上限。
+        if (page == null) {
+            return Mono.error(new IllegalArgumentException("分页参数 Page 不能为 null"));
         }
-        
+        page.normalize();
+
         // 如果 queryWrapper 为 null，创建一个默认的 QueryWrapper 用于分页
         final Wrapper<T> dataWrapper;
         if (queryWrapper == null) {

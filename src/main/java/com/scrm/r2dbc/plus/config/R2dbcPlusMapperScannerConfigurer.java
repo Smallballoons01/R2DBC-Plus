@@ -53,7 +53,18 @@ public class R2dbcPlusMapperScannerConfigurer
         initBasePackages();
 
         if (basePackages.length == 0) {
-            log.debug("未找到 @MapperScan 配置，跳过 Mapper 扫描");
+            // 这是用户最常踩的坑：不加 @MapperScan 会导致注入 Mapper 时报
+            // NoSuchBeanDefinitionException，但根因在这里。用 WARN 明示，
+            // 否则只有 debug 级别可见，极难排查。
+            log.warn("""
+
+                    ======================================================================
+                    R2DBC-Plus 未扫描到任何 Mapper：未检测到 @MapperScan 注解。
+                    如果你的 Mapper 接口标注了 @Mapper，请确保启动类上有：
+                        @MapperScan("com.example.mapper")
+                    或者检查 basePackages 是否指向了正确的包路径。
+                    ======================================================================
+                    """);
             return;
         }
 
@@ -61,6 +72,14 @@ public class R2dbcPlusMapperScannerConfigurer
         for (Class<?> mapperInterface : mapperInterfaces) {
             registerMapperBean(registry, mapperInterface);
         }
+
+        if (mapperInterfaces.isEmpty()) {
+            log.warn("R2DBC-Plus 在包 {} 下未找到带 @Mapper 注解的接口。"
+                            + "请确认 Mapper 接口已标注 @Mapper 且继承了 BaseMapper。",
+                    basePackages.length == 1 ? basePackages[0] : String.join(", ", basePackages));
+            return;
+        }
+
         log.info("R2DBC-Plus Mapper 扫描完成，共注册 {} 个 Mapper: {}", mapperInterfaces.size(),
                 mapperInterfaces.stream().map(Class::getSimpleName).toList());
     }

@@ -9,24 +9,30 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
-import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
  * R2DBC 数据源注册表
  * 自动发现和管理 @R2dbcDataSource 配置的数据源映射
- * 
+ *
  * @author dason
  */
 @Slf4j
-@Component
 public class R2dbcDataSourceRegistry implements ApplicationContextAware {
 
     private ApplicationContext applicationContext;
-    private final Map<String, DataSourceConfig> packageToDataSourceMap = new HashMap<>();
-    private DataSourceConfig defaultDataSourceConfig;
+
+    /**
+     * 包路径 → 数据源配置 的映射。
+     *
+     * <p>本类是单例 Bean，查询会在事件循环线程上并发发生，
+     * 因此使用 {@link ConcurrentHashMap}；初始化写入阶段通过
+     * {@link #initialize()} 一次性完成，之后视为只读。
+     */
+    private final Map<String, DataSourceConfig> packageToDataSourceMap = new ConcurrentHashMap<>();
+    private volatile DataSourceConfig defaultDataSourceConfig;
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {

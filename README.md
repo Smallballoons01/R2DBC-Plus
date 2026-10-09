@@ -26,11 +26,30 @@ R2DBC Plus 是一个响应式 R2DBC ORM 增强框架，灵感来源于 MyBatis-P
 
 ## 技术栈
 
-- Java 17+
-- Spring Boot 3.x
-- Spring Data R2DBC 3.x
+- Java 17+（支持到 JDK 25）
+- Spring Boot 3.5.x（默认）/ 4.1.x（已验证兼容）
+- Spring Data R2DBC 3.5+ / 4.1+
 - R2DBC MySQL Driver
 - Project Reactor
+
+## 兼容性矩阵
+
+本项目在 CI 中对下列组合持续构建验证：
+
+| Spring Boot | JDK | 状态 |
+|-------------|-----|------|
+| 3.5.x | 17 / 21 / 25 | ✅ 主支持 |
+| 4.1.x（Spring Framework 7） | 17 / 21 | ✅ 兼容验证 |
+
+本地可复现验证：
+
+```bash
+mvn clean verify                                 # 默认（Spring Boot 3.5.x）
+mvn clean verify -Dspring-boot.version=4.1.1     # 验证 Spring Boot 4
+```
+
+> 编译使用 `maven.compiler.release=17`，因此在高版本 JDK 上构建出的字节码
+> 仍只链接 Java 17 API，不会出现「编译通过但运行期 NoSuchMethodError」的情况。
 
 ## 快速开始
 
@@ -349,6 +368,64 @@ export R2DBC_TEST_PASSWORD=secret
 mvn test -Dspring.profiles.active=mysql
 ```
 
+## 常见问题排查
+
+### 报 `NoSuchBeanDefinitionException: 找不到 XxxMapper 的 Bean`
+
+绝大多数情况是缺少 `@MapperScan`。框架在这种情况下会打印一条 WARN 提示，
+请在启动类上添加：
+
+```java
+@SpringBootApplication
+@MapperScan("com.example.mapper")   // 指向 Mapper 接口所在包
+public class Application { }
+```
+
+若日志提示「在包 xxx 下未找到带 @Mapper 注解的接口」，请检查：
+1. Mapper 接口是否标注了 `@Mapper`
+2. `basePackages` 是否指向正确的包路径
+
+### 报 `NoDialectException: Cannot determine a dialect`
+
+当前 R2DBC 连接类型没有被 Spring Data R2DBC 内置方言识别。
+本项目已内置 ClickHouse 方言；其他数据库（如 MariaDB 变体、部分国产库）
+需要自行实现 `R2dbcDialectProvider` 并通过 `spring.factories` 注册。
+
+### 字段自动填充没生效
+
+1. 确认实体字段标注了 `@TableField(fill = FieldFill.INSERT / INSERT_UPDATE)`
+2. 确认实现了 `MetaObjectHandler` 并注册为 Bean
+3. `defaultFill` 类中建议用 `strictInsertFill` / `strictUpdateFill`
+
+### 逻辑删除没生效
+
+检查字段是否标注了 `@TableLogic`，且对应列确实存在于数据库中。
+
+### 批量插入返回的主键是 null
+
+`IdType.AUTO` 依赖数据库自增，需确认：
+1. 数据库列已设置自增（AUTO_INCREMENT / IDENTITY）
+2. 驱动支持 `RETURNING` 或可读取自增值
+
+若数据库不支持，改用 `IdType.ASSIGN_ID`（雪花算法）或 `ASSIGN_UUID`。
+
+### 分页 size 被自动截断
+
+为避免 `size` 过大拖垮数据库，默认单页上限为 500。
+可在配置中调整或放开：
+
+```yaml
+r2dbc-plus:
+  max-page-size: 1000
+```
+
+或在代码中 `page.setMaxPageSize(0)` 表示不限制。
+
+### 启动报 `FieldFillProcessor` 或其他 Bean 装配失败
+
+框架已全面采用构造器注入。若你扩展了框架内部类，
+请不要使用反射写私有字段——参见 [CONTRIBUTING.md](./CONTRIBUTING.md) 的约定。
+
 ## 注意事项
 
 1. 本框架仅支持响应式 Spring Boot 应用（WebFlux 或 R2DBC）
@@ -356,10 +433,16 @@ mvn test -Dspring.profiles.active=mysql
 3. 逻辑删除字段需要在实体类中用 `@TableLogic` 标注
 4. 乐观锁字段需要在实体类中用 `@Version` 标注
 5. 内置 ClickHouse 方言（复用 Postgres 方言的 SQL 映射），复杂 ClickHouse 语法建议自定义方言
+6. 框架内部的可变状态均使用并发容器，但自定义扩展请遵守同样的线程安全约定
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。本地跑通测试（`mvn clean verify`）后再提交，可以避免 CI 上出现环境相关失败。
+请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。本地跑通 `mvn clean verify` 后再提交，
+可以避免 CI 上出现环境相关失败。
+
+## 更新日志
+
+见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 许可证
 

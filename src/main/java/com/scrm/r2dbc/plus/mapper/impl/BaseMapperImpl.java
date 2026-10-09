@@ -627,6 +627,13 @@ public class BaseMapperImpl<T> implements BaseMapper<T> {
 
     @Override
     public Mono<Page<T>> selectPage(Page<T> page, Wrapper<T> queryWrapper) {
+        // 分页参数规范化 + 上限保护，避免 size<=0 或超大 size 拼出非法 SQL。
+        // 此处与 ServiceImpl.page 保持一致，直接调用 Mapper 的用户同样受保护。
+        if (page == null) {
+            return Mono.error(new IllegalArgumentException("分页参数 Page 不能为 null"));
+        }
+        page.normalize();
+
         // 如果 queryWrapper 为 null，创建一个默认的 QueryWrapper 用于分页
         final Wrapper<T> dataWrapper;
         if (queryWrapper == null) {

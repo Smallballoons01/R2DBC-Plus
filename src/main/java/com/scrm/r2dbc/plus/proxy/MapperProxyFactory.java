@@ -9,13 +9,14 @@ import com.scrm.r2dbc.plus.page.Page;
 import com.scrm.r2dbc.plus.xml.XmlSqlExecutor;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
-import org.springframework.stereotype.Component;
+
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
@@ -23,7 +24,12 @@ import java.util.Map;
  * 
  * @author dason
  */
-@Component
+/**
+ * Mapper 代理工厂
+ *
+ * <p>由 {@link R2dbcPlusAutoConfiguration} 注册为 Bean，不使用 {@code @Component}，
+ * 避免组件扫描路径下被重复实例化（无默认构造器时会导致启动失败）。
+ */
 public class MapperProxyFactory {
 
     private final XmlSqlExecutor xmlSqlExecutor;
@@ -32,7 +38,15 @@ public class MapperProxyFactory {
     private final FieldFillProcessor fieldFillProcessor;
     private final LogicDeleteProcessor logicDeleteProcessor;
 
-    private final Map<Class<?>, Object> mapperCache = new HashMap<>();
+    /**
+     * Mapper 代理缓存
+     *
+     * <p>本工厂是<b>单例 Bean</b>，而响应式应用（WebFlux / R2DBC）会在多个事件循环线程上
+     * 并发调用 {@link #createMapperProxy(Class)}。若使用 {@link HashMap}，
+     * 并发 {@code computeIfAbsent} 可能破坏 HashMap 的内部桶结构，
+     * 极端情况下退化为链表成环导致 CPU 100% 打满，因此必须使用线程安全实现。
+     */
+    private final Map<Class<?>, Object> mapperCache = new ConcurrentHashMap<>();
     
     // 用于多数据源的构造方法
     private final R2dbcEntityTemplate customEntityTemplate;
@@ -125,7 +139,10 @@ public class MapperProxyFactory {
             return (Class<?>) paramType.getRawType();
         } else {
             // 其他类型，抛出异常
-            throw new UnsupportedOperationException("Unsupported generic type: " + actualType + " for mapper interface: " + mapperInterface.getName());
+            throw new IllegalStateException(String.format(
+                    "无法从 Mapper 接口 %s 中解析实体类型。请确认接口的第一个泛型参数是实体类，"
+                            + "例如：public interface UserMapper extends BaseMapper<User>。",
+                    mapperInterface.getName()));
         }
     }
 
@@ -352,7 +369,10 @@ public class MapperProxyFactory {
                 return xmlSqlExecutor.selectOne(statementId, paramMap, returnType);
             }
 
-            throw new UnsupportedOperationException("Unsupported return type: " + returnType);
+            throw new IllegalStateException(String.format(
+                    "不支持的 Mapper 方法返回值类型：%s。"
+                            + "自定义方法请使用 Mono<T>、Flux<T> 或 Page<T>。",
+                    returnType));
         }
 
         /**
@@ -410,14 +430,18 @@ public class MapperProxyFactory {
             java.lang.reflect.Type genericReturnType = method.getGenericReturnType();
 
             if (!(genericReturnType instanceof ParameterizedType)) {
-                throw new UnsupportedOperationException("Method return type must be parameterized: " + method.getName());
+                throw new IllegalStateException(String.format(
+                        "Mapper 方法 %s 的返回值必须带泛型参数，例如 Mono<User> 或 Flux<User>。",
+                        method.getName()));
             }
 
             ParameterizedType parameterizedType = (ParameterizedType) genericReturnType;
             java.lang.reflect.Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
 
             if (actualTypeArguments.length == 0) {
-                throw new UnsupportedOperationException("No generic type arguments found for method: " + method.getName());
+                throw new IllegalStateException(String.format(
+                        "Mapper 方法 %s 的返回值未声明泛型参数，无法确定结果类型。",
+                        method.getName()));
             }
 
             java.lang.reflect.Type actualType = actualTypeArguments[0];
@@ -429,7 +453,9 @@ public class MapperProxyFactory {
                 // 如果是嵌套的泛型类型，获取原始类型
                 return (Class<?>) ((ParameterizedType) actualType).getRawType();
             } else {
-                throw new UnsupportedOperationException("Unsupported generic type: " + actualType + " for method: " + method.getName());
+                throw new IllegalStateException(String.format(
+                        "Mapper 方法 %s 的返回值泛型 %s 不受支持，请使用 Mono<T> / Flux<T> / Page<T>。",
+                        method.getName(), actualType));
             }
         }
 

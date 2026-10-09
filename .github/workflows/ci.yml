@@ -6,9 +6,48 @@ on:
   pull_request:
     branches: [ main, master ]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # 主矩阵：Spring Boot 3.5.x（稳定线）× 多 JDK
   build:
-    name: Build & Test (JDK ${{ matrix.java }})
+    name: Boot 3.5 / JDK ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ '17', '21', '25' ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+          cache: maven
+
+      - name: 验证可编译
+        run: mvn -B -q clean compile
+
+      - name: 运行测试（H2 内存库，无外部依赖）
+        run: mvn -B clean verify
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-boot35-jdk${{ matrix.java }}
+          path: target/surefire-reports/
+          retention-days: 7
+
+  # 前瞻验证：Spring Boot 4.x（基于 Spring Framework 7）。
+  # 提前发现上游代际变更导致的破坏，避免用户升级时踩坑。
+  build-boot4:
+    name: Boot 4.1 (前瞻) / JDK ${{ matrix.java }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,16 +64,42 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: 验证项目可编译
-        run: mvn -B -q clean compile
+      - name: 覆盖 Spring Boot 版本并验证
+        run: mvn -B clean verify -Dspring-boot.version=4.1.1
 
-      - name: 运行测试（H2 内存库，无需外部依赖）
-        run: mvn -B clean verify
+  # 发布构建：不重复跑测试，仅产出制品
+  release-artifacts:
+    name: 构建制品
+    needs: [ build, build-boot4 ]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
 
-      - name: 上传测试报告
-        if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      - name: 构建制品
+        run: mvn -B clean package -Dmaven.test.skip=true
+
+      - name: 上传制品
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports-jdk${{ matrix.java }}
-          path: target/surefire-reports/
-          retention-days: 7
+          name: r2dbc-plus
+          path: target/r2dbc-plus-*.jar
+          !target/*-sources.jar
+          !target/*-javadoc.jar
+          retention-days: 30
+
+      - name: 上传 sources / javadoc
+        uses: actions/upload-artifact@v4
+        with:
+          name: r2dbc-plus-docs
+          path: |
+            target/r2dbc-plus-*-sources.jar
+            target/r2dbc-plus-*-javadoc.jar
+          retention-days: 30
