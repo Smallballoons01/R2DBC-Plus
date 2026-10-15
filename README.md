@@ -59,7 +59,7 @@ mvn clean verify -Dspring-boot.version=4.1.1     # 验证 Spring Boot 4
 <dependency>
     <groupId>com.scrm</groupId>
     <artifactId>r2dbc-plus</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
