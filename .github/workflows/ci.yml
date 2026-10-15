@@ -90,9 +90,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: r2dbc-plus
-          path: target/r2dbc-plus-*.jar
-          !target/*-sources.jar
-          !target/*-javadoc.jar
+          path: |
+            target/r2dbc-plus-*.jar
+            !target/*-sources.jar
+            !target/*-javadoc.jar
           retention-days: 30
 
       - name: 上传 sources / javadoc
